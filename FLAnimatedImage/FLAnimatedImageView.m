@@ -47,7 +47,13 @@
 
 - (void)setAnimatedImage:(FLAnimatedImage *)animatedImage
 {
-    if (![_animatedImage isEqual:animatedImage]) {
+    [self setAnimatedImage: animatedImage withFrameIndex: 0];
+}
+
+- (void)setAnimatedImage:(FLAnimatedImage *)animatedImage withFrameIndex: (NSUInteger) frameIndex
+{
+    if (![_animatedImage isEqual:animatedImage] || self.currentFrameIndex != frameIndex)
+    {
         if (animatedImage) {
             // Clear out the image.
             super.image = nil;
@@ -61,9 +67,18 @@
         }
         
         _animatedImage = animatedImage;
-        
-        self.currentFrame = animatedImage.posterImage;
-        self.currentFrameIndex = 0;
+
+        if (frameIndex == 0)
+        {
+            self.currentFrame = animatedImage.posterImage;
+            self.currentFrameIndex = 0;
+        }
+        else
+        {
+            self.currentFrame = [animatedImage imageLazilyCachedAtIndex: frameIndex];
+            self.currentFrameIndex = frameIndex;
+        }
+
         if (animatedImage.loopCount > 0) {
             self.loopCountdown = animatedImage.loopCount;
         } else {
@@ -319,7 +334,7 @@ static NSUInteger gcd(NSUInteger a, NSUInteger b)
         return;
     }
     
-    NSNumber *delayTimeNumber = [self.animatedImage.delayTimesForIndexes objectForKey:@(self.currentFrameIndex)];
+    NSNumber *delayTimeNumber = self.animatedImage.delayTimesForIndexes[@(self.currentFrameIndex)];
     // If we don't have a frame delay (e.g. corrupt frame), don't update the view but skip the playhead to the next frame (in else-block).
     if (delayTimeNumber) {
         NSTimeInterval delayTime = [delayTimeNumber floatValue];

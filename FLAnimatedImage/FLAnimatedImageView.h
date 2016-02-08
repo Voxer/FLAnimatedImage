@@ -29,4 +29,7 @@
 @property (nonatomic, strong, readonly) UIImage *currentFrame;
 @property (nonatomic, assign, readonly) NSUInteger currentFrameIndex;
 
+- (void)setAnimatedImage:(FLAnimatedImage *)animatedImage withFrameIndex: (NSUInteger) frameIndex;
+
+
 @end
