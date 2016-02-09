@@ -55,7 +55,7 @@ typedef NS_ENUM(NSUInteger, FLAnimatedImageFrameCacheSize) {
 @property (nonatomic, assign) NSUInteger frameCacheSizeMaxInternal; // Allow to cap the cache size e.g. when memory warnings occur; 0 means no specific limit (default)
 @property (nonatomic, assign) NSUInteger requestedFrameIndex; // Most recently requested frame index
 @property (nonatomic, assign, readonly) NSUInteger posterImageFrameIndex; // Index of non-purgable poster image; never changes
-@property (nonatomic, strong, readonly) NSMutableDictionary *cachedFramesForIndexes;
+@property (nonatomic, strong, readonly) NSMutableDictionary<NSNumber*, UIImage*> *cachedFramesForIndexes;
 @property (nonatomic, strong, readonly) NSMutableIndexSet *cachedFrameIndexes; // Indexes of cached frames
 @property (nonatomic, strong, readonly) NSMutableIndexSet *requestedFrameIndexes; // Indexes of frames that are currently produced in the background
 @property (nonatomic, strong, readonly) NSIndexSet *allFramesIndexSet; // Default index set with the full range of indexes; never changes
@@ -173,6 +173,22 @@ static NSHashTable *allAnimatedImagesWeak;
 
 - (instancetype)initWithAnimatedGIFData:(NSData *)data
 {
+    return [self initWithAnimatedGIFData: data
+                            cachedFrames: nil
+                      cachedFrameIndexes: nil];
+}
+
+- (instancetype) initWithAnimatedImage: (FLAnimatedImage*) animatedImage
+{
+    return [self initWithAnimatedGIFData: animatedImage.data
+                            cachedFrames: animatedImage->_cachedFramesForIndexes
+                      cachedFrameIndexes: animatedImage->_cachedFrameIndexes];
+}
+
+- (instancetype) initWithAnimatedGIFData: (NSData*) data
+                            cachedFrames: (NSDictionary<NSNumber*, UIImage*>*) cachedFramesForIndexes
+                      cachedFrameIndexes: (NSIndexSet*) cachedFrameIndexes
+{
     // Early return if no data supplied!
     BOOL hasData = ([data length] > 0);
     if (!hasData) {
@@ -189,9 +205,11 @@ static NSHashTable *allAnimatedImagesWeak;
         _data = data;
         
         // Initialize internal data structures
-        _cachedFramesForIndexes = [[NSMutableDictionary alloc] init];
-        _cachedFrameIndexes = [[NSMutableIndexSet alloc] init];
-        _requestedFrameIndexes = [[NSMutableIndexSet alloc] init];
+
+        _cachedFramesForIndexes = cachedFramesForIndexes ? [cachedFramesForIndexes mutableCopy] : [NSMutableDictionary new];
+        _cachedFrameIndexes     = cachedFrameIndexes     ? [cachedFrameIndexes     mutableCopy] : [NSMutableIndexSet   new];
+
+        _requestedFrameIndexes  = [NSMutableIndexSet new];
 
         // Note: We could leverage `CGImageSourceCreateWithURL` too to add a second initializer `-initWithAnimatedGIFContentsOfURL:`.
         _imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)data,
@@ -221,7 +239,7 @@ static NSHashTable *allAnimatedImagesWeak;
         //     };
         // }
         NSDictionary *imageProperties = (__bridge_transfer NSDictionary *)CGImageSourceCopyProperties(_imageSource, NULL);
-        _loopCount = [[[imageProperties objectForKey:(id)kCGImagePropertyGIFDictionary] objectForKey:(id)kCGImagePropertyGIFLoopCount] unsignedIntegerValue];
+        _loopCount = [[imageProperties[(id) kCGImagePropertyGIFDictionary] objectForKey: (id) kCGImagePropertyGIFLoopCount] unsignedIntegerValue];
         
         // Iterate through frame images
         size_t imageCount = CGImageSourceGetCount(_imageSource);
@@ -240,7 +258,7 @@ static NSHashTable *allAnimatedImagesWeak;
                         _size = _posterImage.size;
                         // Remember index of poster image so we never purge it; also add it to the cache.
                         _posterImageFrameIndex = i;
-                        [self.cachedFramesForIndexes setObject:self.posterImage forKey:@(self.posterImageFrameIndex)];
+                        self.cachedFramesForIndexes[@(self.posterImageFrameIndex)] = self.posterImage;
                         [self.cachedFrameIndexes addIndex:self.posterImageFrameIndex];
                     }
                     
@@ -259,12 +277,12 @@ static NSHashTable *allAnimatedImagesWeak;
                     // }
                     
                     NSDictionary *frameProperties = (__bridge_transfer NSDictionary *)CGImageSourceCopyPropertiesAtIndex(_imageSource, i, NULL);
-                    NSDictionary *framePropertiesGIF = [frameProperties objectForKey:(id)kCGImagePropertyGIFDictionary];
+                    NSDictionary *framePropertiesGIF = frameProperties[(id) kCGImagePropertyGIFDictionary];
                     
                     // Try to use the unclamped delay time; fall back to the normal delay time.
-                    NSNumber *delayTime = [framePropertiesGIF objectForKey:(id)kCGImagePropertyGIFUnclampedDelayTime];
+                    NSNumber *delayTime = framePropertiesGIF[(id) kCGImagePropertyGIFUnclampedDelayTime];
                     if (!delayTime) {
-                        delayTime = [framePropertiesGIF objectForKey:(id)kCGImagePropertyGIFDelayTime];
+                        delayTime = framePropertiesGIF[(id) kCGImagePropertyGIFDelayTime];
                     }
                     // If we don't get a delay time from the properties, fall back to `kDelayTimeIntervalDefault` or carry over the preceding frame's value.
                     const NSTimeInterval kDelayTimeIntervalDefault = 0.1;
