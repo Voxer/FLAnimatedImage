@@ -390,8 +390,8 @@ static NSUInteger gcd(NSUInteger a, NSUInteger b)
 
 - (void)displayLayer:(CALayer *)layer
 {
-    layer.contents = (__bridge id)self.image.CGImage;
+    if (self.shouldAnimate)
+        layer.contents = (__bridge id)self.image.CGImage;
 }
-
 
 @end
