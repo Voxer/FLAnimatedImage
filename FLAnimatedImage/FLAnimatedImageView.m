@@ -195,14 +195,13 @@
 
 - (void)setImage:(UIImage *)image
 {
-    if (image) {
+    if (image && self.animatedImage) {
         // Clear out the animated image and implicitly pause animation playback.
         self.animatedImage = nil;
     }
-    
-    super.image = image;
-}
 
+    [super setImage: image];
+}
 
 #pragma mark Animating Images
 
@@ -324,7 +323,6 @@ static NSUInteger gcd(NSUInteger a, NSUInteger b)
     self.shouldAnimate = self.animatedImage && isVisible;
 }
 
-
 - (void)displayDidRefresh:(CADisplayLink *)displayLink
 {
     // If for some reason a wild call makes it through when we shouldn't be animating, bail.
@@ -385,13 +383,18 @@ static NSUInteger gcd(NSUInteger a, NSUInteger b)
 }
 
 
-#pragma mark - CALayerDelegate (Informal)
-#pragma mark Providing the Layer's Content
+#pragma mark - CALayerDelegate
 
-- (void)displayLayer:(CALayer *)layer
+- (void) drawLayer: (CALayer*) layer inContext: (CGContextRef) context
 {
-    if (self.shouldAnimate)
-        layer.contents = (__bridge id)self.image.CGImage;
+    if (self.currentFrame)
+    {
+        UIGraphicsPushContext(context);
+        [self.currentFrame drawInRect: layer.bounds];
+        UIGraphicsPopContext();
+    }
+    else
+        [super drawLayer: layer inContext: context];
 }
 
 @end
